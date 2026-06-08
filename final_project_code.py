@@ -29,20 +29,20 @@ MAX_DIGITAL_POT_BYTE = 255
 #   - 100k pots: DP0, DP1, DP2, DP3, DP4, DP5, DP7, DP11, DP12
 #   - 10k  pots: DP6, DP8, DP9, DP10, DP13
 DIGITAL_POTS = {
-    0:  {"address": 0b0100000, "max_resistance": R_100K},
-    1:  {"address": 0b0100010, "max_resistance": R_100K},
-    2:  {"address": 0b0100011, "max_resistance": R_100K},
-    3:  {"address": 0b0101000, "max_resistance": R_100K},
-    4:  {"address": 0b0101010, "max_resistance": R_100K},
-    5:  {"address": 0b0101011, "max_resistance": R_100K},
-    6:  {"address": 0b0101100, "max_resistance": R_10K},
-    7:  {"address": 0b0101110, "max_resistance": R_100K},
-    8:  {"address": 0b0101111, "max_resistance": R_10K},
-    9:  {"address": 0b0101100, "max_resistance": R_10K},
-    10: {"address": 0b0101111, "max_resistance": R_10K},
-    11: {"address": 0b0101010, "max_resistance": R_100K},
-    12: {"address": 0b0101011, "max_resistance": R_100K},
-    13: {"address": 0b0101110, "max_resistance": R_10K},
+    0:  {"address": 0b0100000, "channel": 0, "max_resistance": R_100K},
+    1:  {"address": 0b0100010, "channel": 0, "max_resistance": R_100K},
+    2:  {"address": 0b0100011, "channel": 0, "max_resistance": R_100K},
+    3:  {"address": 0b0101000, "channel": 0, "max_resistance": R_100K},
+    4:  {"address": 0b0101010, "channel": 0, "max_resistance": R_100K},
+    5:  {"address": 0b0101011, "channel": 0, "max_resistance": R_100K},
+    6:  {"address": 0b0101100, "channel": 0, "max_resistance": R_10K},
+    7:  {"address": 0b0101110, "channel": 0, "max_resistance": R_100K},
+    8:  {"address": 0b0101111, "channel": 0, "max_resistance": R_10K},
+    9:  {"address": 0b0101100, "channel": 1, "max_resistance": R_10K},   # shares chip w/ DP6
+    10: {"address": 0b0101111, "channel": 1, "max_resistance": R_10K},   # shares chip w/ DP8
+    11: {"address": 0b0101010, "channel": 1, "max_resistance": R_100K},  # shares chip w/ DP4
+    12: {"address": 0b0101011, "channel": 1, "max_resistance": R_100K},  # shares chip w/ DP5
+    13: {"address": 0b0101110, "channel": 1, "max_resistance": R_10K},   # shares chip w/ DP7
 }
 
 # pot instructions
@@ -73,18 +73,18 @@ NULL_RESISTANCE = -1
 # --- Bank 2 = "Wein capacitor bank" (values read from schematic), Farads ---
 C58 = 1.4 * (10**-6)   # U31 B2
 C59 = 200 * (10**-9)   # U31 B1
-C60 = 200 * (10**-9)   # U32 B2
+C60 = 0   # U32 B2
 C61 = 25 * (10**-9)    # U32 B1
 C62 = 4 * (10**-9)     # U33 B2
 C63 = 0.5 * (10**-9)   # U33 B1
 
 # --- Bank 1 = triangle/square cap bank, Farads ---
-C34 = 10 * (10**-6)   # B2  (placeholder)
-C35 = 0    # B1  (placeholder)
-C37 = 680 * (10**-9)    # B2  (placeholder)
-C38 = 0  # B1  (placeholder)
-C40 = 100 * (10**-9)     # B2  (placeholder)
-C41 = 10 * (10**-9)   # B1  (placeholder)
+C34 = 1.4 * (10**-6)   # U31 B2
+C35 = 200 * (10**-9)   # U31 B1
+C37 = 0   # U32 B2
+C38 = 25 * (10**-9)    # U32 B1
+C40 = 4 * (10**-9)     # U33 B2
+C41 = 0.5 * (10**-9)   # U33 B1
 
 # Per-bank lookup. For each switch: "low" -> B1 cap, "high" -> B2 cap.
 CAP_BANKS = {
@@ -188,28 +188,30 @@ def set_digital_pot(pot_num, dp_resistance):
     """
 
     cfg = DIGITAL_POTS[pot_num]
-    pot_address = cfg["address"]
+    pot_address    = cfg["address"]
     max_resistance = cfg["max_resistance"]
+    channel        = cfg.get("channel", 0)
 
     if pot_address is None:
         raise ValueError(
             f"DP{pot_num} has no I2C address set yet -- fill it into DIGITAL_POTS."
         )
 
-    # Compute value for setting potentiometer
-    r_byte = resistance_to_byte(dp_resistance, max_resistance).to_bytes(1, 'big')
-    data_byte = UPDATE_INSTRUCTION_BYTE + r_byte
+    # Compute pot code (int 0..255)
+    r_byte = resistance_to_byte(dp_resistance, max_resistance)
 
-    # Set the potentiometer value
-    i2c.writeto(pot_address, bytearray(data_byte)) # load new resistance value for pot
-    i2c.writeto(pot_address, bytearray(SAVE_INSTRUCTION_BYTE + r_byte)) # save value as default resistance for pot
+    # Command byte = 4-bit command | 4-bit RDAC channel select
+    update_cmd = UPDATE_INSTRUCTION_BYTE[0] | channel   # write RDAC<channel>
+    save_cmd   = SAVE_INSTRUCTION_BYTE[0]   | channel   # store RDAC<channel> to EEMEM
 
-    # Print out potentiometer value to ensure correct value was set
-    returned_byte = r_byte # bytearray(2) # Potentiometer value is stored into this variable
-    #i2c.writeto_then_readfrom(pot_address, READ_INSTRUCTION_BYTE + READ_DATA_BYTE, returned_byte) # read back resistance value as a byte
-    print(f"DP{pot_num} Resistance: ", byte_to_resistance(returned_byte, max_resistance),
-          " Ohms; ", data_byte.hex()) # print out resistance value
+    # Load new value, then save it as the pot's default
+    i2c.writeto(pot_address, bytes([update_cmd, r_byte]))
+    i2c.writeto(pot_address, bytes([save_cmd,   r_byte]))
 
+    print(f"DP{pot_num} (addr 0x{pot_address:02X}, ch {channel}): "
+          f"{byte_to_resistance(bytes([r_byte]), max_resistance)} Ohms; "
+          f"{bytes([update_cmd, r_byte]).hex()}")
+          
 def set_digital_pots(**pots):
     """
     Sets multiple digital pot resistances.
@@ -330,98 +332,3 @@ def step_down_digital_pots_bounded(duration, steps, pot_code, end, start):
         current_resistance = end + current_resistance_offset
         set_digital_pots(**{f"dp{pot_code}": current_resistance})
         time.sleep(step_duration)
-
-# ------------------------------------------------------------------------
-#                          POT / SWITCH ROLES
-# ------------------------------------------------------------------------
-# Triangle / Square oscillator
-TRI_SQ_FREQ_POTS     = [8]        # frequency
-TRI_SQ_AMP_POTS      = [4, 5]     # amplitude
-TRI_SQ_BIAS_POT      = 6          # bias
-TRI_SQ_OVERSHOOT_POT = 7          # overshoot
-TRI_SQ_CAP_BANK      = 1          # cap bank feeding this oscillator
-
-# Wein (sine) oscillator
-WEIN_FREQ_POTS = [11, 12, 13]     # frequency
-WEIN_AMP_POTS  = [9, 10]          # amplitude
-WEIN_CAP_BANK  = 2                # Wein cap bank
-
-# ------------------------------------------------------------------------
-#                          FREQUENCY SWEEP
-# ------------------------------------------------------------------------
-def _bands_by_cap(bank):
-    """The 8 switch combos of `bank`, ordered largest C (lowest freq) first."""
-    caps = CAP_BANKS[bank]
-    combos = []
-    for sw0 in (False, True):
-        for sw1 in (False, True):
-            for sw2 in (False, True):
-                c = ((caps[0]["high"] if sw0 else caps[0]["low"]) +
-                     (caps[1]["high"] if sw1 else caps[1]["low"]) +
-                     (caps[2]["high"] if sw2 else caps[2]["low"]))
-                combos.append(((sw0, sw1, sw2), c))
-    combos.sort(key=lambda x: x[1], reverse=True)   # big C first -> low f first
-    return [sw for sw, c in combos]
-
-def sweep_frequency(freq_pots, cap_bank, steps_per_band, dwell_s):
-    """
-    Frequency sweep for the Rigol scan. For each cap band, step the frequency
-    pot(s) from 0 -> full scale (by fraction, so 100k and 10k pots move
-    together), pausing dwell_s at each step so the scan can record Vpp.
-    Covers all 8 bands of the given cap bank.
-
-    INPUTS
-        freq_pots:      list of DP#s that set frequency (stepped together)
-        cap_bank:       which cap bank provides the frequency bands (1 or 2)
-        steps_per_band: pot steps within each band
-        dwell_s:        seconds to hold at each step
-    """
-    for sw in _bands_by_cap(cap_bank):
-        set_cap_bank(cap_bank, *sw)
-        for step in range(steps_per_band):
-            frac = step / (steps_per_band - 1) if steps_per_band > 1 else 0.0
-            set_digital_pots_frac(**{f"dp{p}": frac for p in freq_pots})
-            time.sleep(dwell_s)
-
-def sweep_sine(steps_per_band=20, dwell_s=0.2):
-    """Sweep the Wein/sine output across all bands of the Wein cap bank."""
-    sweep_frequency(WEIN_FREQ_POTS, WEIN_CAP_BANK, steps_per_band, dwell_s)
-
-def sweep_tri_sq(steps_per_band=20, dwell_s=0.2):
-    """Sweep the triangle/square output across all bands of its cap bank."""
-    sweep_frequency(TRI_SQ_FREQ_POTS, TRI_SQ_CAP_BANK, steps_per_band, dwell_s)
-
-# ------------------------------------------------------------------------
-#                  TRIANGLE vs SQUARE SELECT (SW_AMP1 / SW_AMP2)
-# ------------------------------------------------------------------------
-def set_amp_switches(triangle):
-    """
-    Select triangle vs square using SW_AMP1 and SW_AMP2.
-        triangle=True  -> triangle
-        triangle=False -> square
-
-    TODO (not sure of these yet): fill in the two switch states for each case,
-    and how SW_AMP1 / SW_AMP2 are actually driven -- e.g. set_gp_pins(...) if
-    they are MCP2221 GP pins, or an expander pin if they are on the MCP23017.
-    """
-    if triangle:
-        sw_amp1 = None   # TODO
-        sw_amp2 = None   # TODO
-    else:
-        sw_amp1 = None   # TODO
-        sw_amp2 = None   # TODO
-
-    # TODO: actually drive the switches here, e.g.:
-    #   set_gp_pins(...)                # if SW_AMP1/SW_AMP2 are GP pins
-    # (left blank on purpose -- fill in once you know the wiring)
-
-    print(f"AMP switches -> SW_AMP1={sw_amp1}, SW_AMP2={sw_amp2} "
-          f"({'triangle' if triangle else 'square'})")
-
-# set_gp_pins(gp0=True, gp1=True, gp2=True)
-# scan = i2c.scan()
-# e.g. set_digital_pots_frac(dp13 = 0.5, dp0 = 0.1)
-# e.g. sweep_tri_sq(steps_per_band=20, dwell_s=0.2)
-# e.g. sweep_sine(steps_per_band=20, dwell_s=0.2)
-
-# extra stuff w/ sweep, not totally done? not sure need to look together
