@@ -29,20 +29,20 @@ MAX_DIGITAL_POT_BYTE = 255
 #   - 100k pots: DP0, DP1, DP2, DP3, DP4, DP5, DP7, DP11, DP12
 #   - 10k  pots: DP6, DP8, DP9, DP10, DP13
 DIGITAL_POTS = {
-    0:  {"address": 0b0100000, "channel": 0, "max_resistance": R_100K},
-    1:  {"address": 0b0100010, "channel": 0, "max_resistance": R_100K},
-    2:  {"address": 0b0100011, "channel": 0, "max_resistance": R_100K},
-    3:  {"address": 0b0101000, "channel": 0, "max_resistance": R_100K},
-    4:  {"address": 0b0101010, "channel": 0, "max_resistance": R_100K},
-    5:  {"address": 0b0101011, "channel": 0, "max_resistance": R_100K},
-    6:  {"address": 0b0101100, "channel": 0, "max_resistance": R_10K},
-    7:  {"address": 0b0101110, "channel": 0, "max_resistance": R_100K},
-    8:  {"address": 0b0101111, "channel": 0, "max_resistance": R_10K},
-    9:  {"address": 0b0101100, "channel": 1, "max_resistance": R_10K},   # shares chip w/ DP6
-    10: {"address": 0b0101111, "channel": 1, "max_resistance": R_10K},   # shares chip w/ DP8
-    11: {"address": 0b0101010, "channel": 1, "max_resistance": R_100K},  # shares chip w/ DP4
-    12: {"address": 0b0101011, "channel": 1, "max_resistance": R_100K},  # shares chip w/ DP5
-    13: {"address": 0b0101110, "channel": 1, "max_resistance": R_10K},   # shares chip w/ DP7
+    0:  {"address": 0b0100000, "max_resistance": R_100K},
+    1:  {"address": 0b0100010, "max_resistance": R_100K},
+    2:  {"address": 0b0100011, "max_resistance": R_100K},
+    3:  {"address": 0b0101000, "max_resistance": R_100K},
+    4:  {"address": 0b0101010, "max_resistance": R_100K},
+    5:  {"address": 0b0101011, "max_resistance": R_100K},
+    6:  {"address": 0b0101100, "max_resistance": R_10K},
+    7:  {"address": 0b0101110, "max_resistance": R_100K},
+    8:  {"address": 0b0101111, "max_resistance": R_10K},
+    9:  {"address": 0b0101100, "max_resistance": R_10K},   # shares chip w/ DP6
+    10: {"address": 0b0101111, "max_resistance": R_10K},   # shares chip w/ DP8
+    11: {"address": 0b0101010, "max_resistance": R_100K},  # shares chip w/ DP4
+    12: {"address": 0b0101011, "max_resistance": R_100K},  # shares chip w/ DP5
+    13: {"address": 0b0101110, "max_resistance": R_10K},   # shares chip w/ DP7
 }
 
 # pot instructions
