@@ -188,29 +188,27 @@ def set_digital_pot(pot_num, dp_resistance):
     """
 
     cfg = DIGITAL_POTS[pot_num]
-    pot_address    = cfg["address"]
+    pot_address = cfg["address"]
     max_resistance = cfg["max_resistance"]
-    channel        = cfg.get("channel", 0)
 
     if pot_address is None:
         raise ValueError(
             f"DP{pot_num} has no I2C address set yet -- fill it into DIGITAL_POTS."
         )
 
-    # Compute pot code (int 0..255)
-    r_byte = resistance_to_byte(dp_resistance, max_resistance)
+    # Compute value for setting potentiometer
+    r_byte = resistance_to_byte(dp_resistance, max_resistance).to_bytes(1, 'big')
+    data_byte = UPDATE_INSTRUCTION_BYTE + r_byte
 
-    # Command byte = 4-bit command | 4-bit RDAC channel select
-    update_cmd = UPDATE_INSTRUCTION_BYTE[0] | channel   # write RDAC<channel>
-    save_cmd   = SAVE_INSTRUCTION_BYTE[0]   | channel   # store RDAC<channel> to EEMEM
+    # Set the potentiometer value
+    i2c.writeto(pot_address, bytearray(data_byte)) # load new resistance value for pot
+    i2c.writeto(pot_address, bytearray(SAVE_INSTRUCTION_BYTE + r_byte)) # save value as default resistance for pot
 
-    # Load new value, then save it as the pot's default
-    i2c.writeto(pot_address, bytes([update_cmd, r_byte]))
-    i2c.writeto(pot_address, bytes([save_cmd,   r_byte]))
-
-    print(f"DP{pot_num} (addr 0x{pot_address:02X}, ch {channel}): "
-          f"{byte_to_resistance(bytes([r_byte]), max_resistance)} Ohms; "
-          f"{bytes([update_cmd, r_byte]).hex()}")
+    # Print out potentiometer value to ensure correct value was set
+    returned_byte = r_byte # bytearray(2) # Potentiometer value is stored into this variable
+    #i2c.writeto_then_readfrom(pot_address, READ_INSTRUCTION_BYTE + READ_DATA_BYTE, returned_byte) # read back resistance value as a byte
+    print(f"DP{pot_num} Resistance: ", byte_to_resistance(returned_byte, max_resistance),
+          " Ohms; ", data_byte.hex()) # print out resistance value
           
 def set_digital_pots(**pots):
     """
